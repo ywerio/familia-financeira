@@ -59,29 +59,11 @@ function bindStatementPanel(){
    await yieldUI();
    progress('Iniciando conferência dos registros',0,0,13,0);
    await yieldUI();
-   const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
-   if(totalExisting>0){progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();}
-   for(const source of [incomes,expenses]){
-    for(let i=0;i<source.length;i++){
-     const x=source[i];
-     if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));
-     scanned++;
-     if(scanned%10===0||scanned===totalExisting){
-      progress('Conferindo registros já cadastrados',scanned,totalExisting,5,30);
-      await new Promise(resolve=>setTimeout(resolve,25));
-     }
-    }
-   }
-   const total=parsed.length;pendingStatementRows=[];
-   const compareBase=totalExisting>0?35:5;
-   const compareSpan=totalExisting>0?60:90;
-   progress('Comparando lançamentos do arquivo',0,total,compareBase,compareSpan);await yieldUI();
-   for(let i=0;i<total;i++){
-    const x=parsed[i],key=x.fitid||[x.date,x.name,Math.abs(Number(x.amount)||0).toFixed(2)].join('|');
-    if(!existing.has(key))pendingStatementRows.push(x);existing.add(key);
-    progress('Comparando lançamentos do arquivo',i+1,total,compareBase,compareSpan);
-    if((i+1)%5===0||i===total-1)await yieldUI();
-   }
+   progress('Conferindo rendas e despesas separadamente',0,1,15,75);await yieldUI();
+   if(!window.FFImport||typeof window.FFImport.filtrarNovos!=='function')throw Error('O filtro de duplicidade não foi carregado. Recarregue a página.');
+   const resultado=window.FFImport.filtrarNovos(parsed,db);
+   pendingStatementRows=resultado.novos;
+   progress('Conferência concluída',1,1,90,0);await yieldUI();
    progress('Montando prévia',1,1,95,5);await yieldUI();
    const tin=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)>0?Number(x.amount):0),0),tout=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)<0?Math.abs(Number(x.amount)):0),0);
    if(!box)throw Error('A área de resultado não foi encontrada na tela.');
