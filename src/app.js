@@ -25,7 +25,7 @@ function toast(s){let t=document.getElementById('toast');t.textContent=s;t.class
 let pendingStatementRows=[];
 function statementPanel(){return '<section class="panel statement-import"><div class="panel-head"><div><h3>Importar extrato bancário</h3><p>Importe arquivos OFX ou CSV baixados no aplicativo do seu banco. O arquivo é processado neste dispositivo.</p></div></div><div class="import-controls"><input id="statementFile" type="file" accept=".ofx,.csv,application/x-ofx,text/csv"><button class="primary-button" id="previewStatement">Analisar extrato</button></div><p class="report-note">A importação não conecta à conta bancária nem envia seu extrato para um servidor. Confira os lançamentos antes de confirmar.</p><div id="statementPreview"></div></section>'}
 const originalRender=render;
-render=function(){originalRender();if(page==='transactions'){const target=document.getElementById('pageContent');target.insertAdjacentHTML('beforeend',statementPanel())}};
+render=function(){originalRender();if(page==='transactions'){const target=document.getElementById('pageContent');target.insertAdjacentHTML('afterbegin',statementPanel())}};
 document.addEventListener('click',async function(e){
  if(e.target.id==='previewStatement'){
   const file=document.getElementById('statementFile')?.files?.[0];if(!file){toast('Selecione um arquivo OFX ou CSV.');return}
