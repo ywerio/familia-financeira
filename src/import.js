@@ -8,14 +8,14 @@ function csv(t){t=t.replace(/^\uFEFF/,'').replace(/\0/g,'');const lines=t.split(
 async function read(f){if(typeof FileReader==='undefined'){if(typeof f.text==='function')return await f.text();throw Error('Este navegador não permite ler arquivos.')}return await new Promise((resolve,reject)=>{const reader=new FileReader(),timer=setTimeout(()=>{try{reader.abort()}catch(e){}reject(Error('O Android não concluiu a leitura em 15 segundos. Feche o seletor de arquivos, baixe o extrato novamente e tente outra vez.'))},15000);reader.onload=()=>{clearTimeout(timer);resolve(String(reader.result||''))};reader.onerror=()=>{clearTimeout(timer);reject(Error('O Android apresentou uma falha ao abrir o arquivo.'))};reader.onabort=()=>{clearTimeout(timer);reject(Error('A leitura do arquivo foi interrompida.'))};try{reader.readAsText(f)}catch(e){clearTimeout(timer);reject(e)}})}
 
 function textoChave(nome) {
-  return String(nome == null ? '' : nome).replace(/\\s+/g, ' ').trim().toLowerCase();
+  return String(nome == null ? '' : nome).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 function chaveDuplicidade(item) {
   return [item.date, textoChave(item.name || item.description), Math.abs(Number(item.amount) || 0).toFixed(2)].join('|');
 }
 function naturezaDe(item) { return Number(item.amount) < 0 ? 'despesa' : 'renda'; }
 function novoLancamento(contador, dateValue, amountValue, nome) {
-  const name = String(nome || '').replace(/\\s+/g, ' ').trim();
+  const name = String(nome || '').replace(/\s+/g, ' ').trim();
   const valor = Math.round(Number(amountValue) * 100) / 100;
   const base = chaveDuplicidade({ date: dateValue, name, amount: valor });
   const k = base + '|' + (valor < 0 ? 'despesa' : 'renda');
@@ -74,7 +74,7 @@ async function parseCompat(f, onStatus, opcoes) {
   else throw Error('Formato não reconhecido. Selecione um arquivo .ofx ou .csv.');
   const contador = {};
   result = result.map(x => {
-    const item = { ...x, name: String(x.name || x.description || 'Movimentação importada').replace(/\\s+/g, ' ').trim() };
+    const item = { ...x, name: String(x.name || x.description || 'Movimentação importada').replace(/\s+/g, ' ').trim() };
     if (!item.fitid) item.fitid = novoLancamento(contador, item.date, item.amount, item.name).fitid;
     return item;
   });
