@@ -35,7 +35,7 @@ function bindStatementPanel(){
   if(box)box.innerHTML='<p class="report-note">Lendo e conferindo o extrato...</p>';
   try{
    if(!window.FFImport||typeof window.FFImport.parse!=='function')throw Error('O leitor de extratos não foi carregado. Recarregue a página.');
-   const parsed=await window.FFImport.parse(file);
+   if(box)box.innerHTML='<p class="report-note">Arquivo selecionado: '+esc(file.name)+' ('+Math.max(1,Math.round(file.size/1024))+' KB). Lendo o conteúdo...</p>';const parsed=await Promise.race([window.FFImport.parse(file),new Promise((_,reject)=>setTimeout(()=>reject(Error('O processamento ultrapassou 25 segundos. O navegador não concluiu a leitura deste arquivo. Tente exportar novamente em OFX ou CSV.')),25000))]);
    if(!Array.isArray(parsed)||!parsed.length)throw Error('O arquivo foi lido, mas não contém movimentações reconhecidas.');
    const existing=new Set([...db.incomes,...db.expenses].map(x=>x.fitid||[x.date,x.name,Number(x.amount).toFixed(2)].join('|')));
    pendingStatementRows=parsed.filter(x=>!existing.has(x.fitid||[x.date,x.name,Math.abs(x.amount).toFixed(2)].join('|')));
