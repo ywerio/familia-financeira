@@ -63,7 +63,7 @@ async function filtrarNovosAsync(importados, db, onProgress) {
     renda: { fitids: new Set(), contagem: Object.create(null), vistos: Object.create(null) },
     despesa: { fitids: new Set(), contagem: Object.create(null), vistos: Object.create(null) }
   };
-  const lote = 100;
+  const lote = 10;
   const existentes = base.renda.length + base.despesa.length;
   let lidos = 0;
   for (const nat of ['renda', 'despesa']) {
