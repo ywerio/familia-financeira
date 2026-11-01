@@ -25,13 +25,26 @@ function toast(s){let t=document.getElementById('toast');t.textContent=s;t.class
 let pendingStatementRows=[];
 function statementPanel(){return '<section class="panel statement-import"><div class="panel-head"><div><h3>Importar extrato bancário</h3><p>Importe arquivos OFX ou CSV baixados no aplicativo do seu banco. O arquivo é processado neste dispositivo.</p></div></div><div class="import-controls"><input id="statementFile" type="file" accept=".ofx,.csv,application/x-ofx,text/csv"><button class="primary-button" id="previewStatement">Analisar extrato</button></div><p class="report-note">A importação não conecta à conta bancária nem envia seu extrato para um servidor. Confira os lançamentos antes de confirmar.</p><div id="statementPreview"></div></section>'}
 document.addEventListener('click',async function(e){
- if(e.target.id==='previewStatement'){
-  const file=document.getElementById('statementFile')?.files?.[0];if(!file){toast('Selecione um arquivo OFX ou CSV.');return}
-  const box=document.getElementById('statementPreview');box.innerHTML='<p class="report-note">Lendo arquivo...</p>';
-  try{pendingStatementRows=await window.FFImport.parse(file);const existing=new Set([...db.incomes,...db.expenses].map(x=>x.fitid||[x.date,x.name,Number(x.amount).toFixed(2)].join('|')));const fresh=pendingStatementRows.filter(x=>!existing.has(x.fitid||[x.date,x.name,Math.abs(x.amount).toFixed(2)].join('|')));pendingStatementRows=fresh;box.innerHTML='<div class="import-summary"><b>'+fresh.length+' lançamento(s) novo(s)</b><span>'+ (pendingStatementRows.length?'Revise a amostra abaixo.':'Todos os registros parecem já existir.')+'</span></div>'+(fresh.length?'<div class="table-panel"><table class="data-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>'+fresh.slice(0,12).map(x=>'<tr><td>'+fmtDate(x.date)+'</td><td>'+esc(x.name)+'</td><td>'+(x.amount>0?'Entrada':'Saída')+'</td><td>'+brl(Math.abs(x.amount))+'</td></tr>').join('')+'</tbody></table></div><p class="report-note">'+(fresh.length>12?'Mostrando os primeiros 12 registros. ':'')+'A confirmação importará todos os '+fresh.length+' registros.</p><button class="primary-button" id="confirmStatement">Confirmar importação</button> <button class="secondary-button" id="cancelStatement">Cancelar</button>':'<p class="report-note">Nenhum lançamento novo para importar.</p>');}
-  catch(err){box.innerHTML='<p class="import-error">'+esc(err.message||'Falha ao ler o arquivo.')+'</p>';pendingStatementRows=[]}
+ const target=e.target.closest?e.target.closest('#previewStatement, #confirmStatement, #cancelStatement'):null;
+ if(!target)return;
+ if(target.id==='previewStatement'){
+  const file=document.getElementById('statementFile')?.files?.[0],box=document.getElementById('statementPreview');
+  if(!file){if(box)box.innerHTML='<p class="import-error">Selecione um arquivo OFX ou CSV antes de analisar.</p>';return}
+  target.disabled=true;target.textContent='Analisando...';if(box)box.innerHTML='<p class="report-note">Lendo e conferindo o extrato...</p>';
+  try{
+   if(!window.FFImport||typeof window.FFImport.parse!=='function')throw Error('O módulo de importação não carregou. Atualize a página e tente novamente.');
+   const parsed=await window.FFImport.parse(file),existing=new Set([...db.incomes,...db.expenses].map(x=>x.fitid||[x.date,x.name,Number(x.amount).toFixed(2)].join('|')));
+   pendingStatementRows=parsed.filter(x=>!existing.has(x.fitid||[x.date,x.name,Math.abs(x.amount).toFixed(2)].join('|')));
+   const tin=pendingStatementRows.filter(x=>x.amount>0).reduce((t,x)=>t+x.amount,0),tout=pendingStatementRows.filter(x=>x.amount<0).reduce((t,x)=>t+Math.abs(x.amount),0);
+   if(!box)throw Error('Área de prévia não encontrada. Saia de Lançamentos e entre novamente.');
+   box.innerHTML='<div class="import-summary"><b>'+pendingStatementRows.length+' lançamento(s) novo(s)</b><span>'+ (pendingStatementRows.length?'Confira os valores antes de confirmar.':'Todos os registros parecem já existir.')+'</span><p>Entradas: '+brl(tin)+'　|　Saídas: '+brl(tout)+'</p></div>'+(pendingStatementRows.length?'<div class="table-panel"><table class="data-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>'+pendingStatementRows.slice(0,15).map(x=>'<tr><td>'+fmtDate(x.date)+'</td><td>'+esc(x.name)+'</td><td>'+(x.amount>0?'Entrada':'Saída')+'</td><td>'+brl(Math.abs(x.amount))+'</td></tr>').join('')+'</tbody></table></div><p class="report-note">'+(pendingStatementRows.length>15?'Mostrando os primeiros 15 registros. ':'')+'A confirmação importará todos os '+pendingStatementRows.length+' registros.</p><button class="primary-button" id="confirmStatement">Confirmar importação</button> <button class="secondary-button" id="cancelStatement">Cancelar</button>':'<p class="report-note">Nenhum lançamento novo para importar.</p>');
+  }catch(err){pendingStatementRows=[];if(box)box.innerHTML='<p class="import-error">'+esc(err.message||'Não foi possível analisar o arquivo.')+'</p>'}
+  finally{target.disabled=false;target.textContent='Analisar extrato'}return;
  }
- if(e.target.id==='confirmStatement'){
-  let added=0;pendingStatementRows.forEach(x=>{const item={id:uid(),name:x.name,category:'Outros',date:x.date,amount:Math.abs(x.amount),status:'Pago',fitid:x.fitid||'',imported:true,sourceFormat:x.sourceFormat};if(x.amount>0)db.incomes.push({...item,source:'Extrato bancário'});else db.expenses.push(item);added++});save();pendingStatementRows=[];toast(added+' lançamento(s) importado(s).');}
- if(e.target.id==='cancelStatement'){pendingStatementRows=[];const box=document.getElementById('statementPreview');if(box)box.innerHTML=''}
+ if(target.id==='confirmStatement'){
+  if(!pendingStatementRows.length){toast('Não há lançamentos novos para importar.');return}
+  let added=0;pendingStatementRows.forEach(x=>{const item={id:uid(),name:x.name,category:'Outros',date:x.date,amount:Math.abs(x.amount),status:'Pago',fitid:x.fitid||'',imported:true,sourceFormat:x.sourceFormat};if(x.amount>0)db.incomes.push({...item,source:'Extrato bancário'});else db.expenses.push(item);added++});
+  save();pendingStatementRows=[];toast(added+' lançamento(s) importado(s).');return;
+ }
+ if(target.id==='cancelStatement'){pendingStatementRows=[];const box=document.getElementById('statementPreview');if(box)box.innerHTML='<p class="report-note">Importação cancelada. Nenhum dado foi alterado.'}
 });
