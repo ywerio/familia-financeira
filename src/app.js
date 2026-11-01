@@ -55,7 +55,10 @@ function bindStatementPanel(){
    progress('Acessando lançamentos locais',0,1,8,0);await yieldUI();
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
    progress('Dados locais acessados',1,1,10,0);await yieldUI();
-   progress('Preparando comparação dos lançamentos',0,1,12,0);
+   progress('Preparando comparação dos lançamentos',0,0,12,0);
+   await yieldUI();
+   progress('Iniciando conferência dos registros',0,0,13,0);
+   await yieldUI();
    const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
    if(totalExisting>0){progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();}
    for(const source of [incomes,expenses]){
