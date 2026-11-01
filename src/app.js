@@ -42,7 +42,7 @@ function bindStatementPanel(){
    if(labelEl)labelEl.textContent=label;
    if(percentEl)percentEl.textContent=pct+'%';
    if(fillEl)fillEl.style.width=pct+'%';
-   if(countEl)countEl.textContent=done+' de '+total;
+   if(countEl)countEl.textContent=total>0?done+' de '+total:'Nenhum registro nesta etapa';
   };
   timer=setInterval(()=>{const el=document.getElementById('importProgressTime');if(el)el.textContent=elapsed()},250);
   const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,50));
@@ -55,9 +55,9 @@ function bindStatementPanel(){
    progress('Acessando lançamentos locais',0,1,8,0);await yieldUI();
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
    progress('Dados locais acessados',1,1,10,0);await yieldUI();
-   progress('Preparando comparação dos lançamentos',0,0,12,0);
+   progress('Preparando comparação dos lançamentos',1,1,12,0);
    await yieldUI();
-   progress('Iniciando conferência dos registros',0,0,13,0);
+   progress('Iniciando conferência dos registros',1,1,13,0);
    await yieldUI();
    const totalExisting=incomes.length+expenses.length,totalImported=parsed.length;
    pendingStatementRows=[];
