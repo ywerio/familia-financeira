@@ -53,6 +53,58 @@ function filtrarNovos(importados, db) {
   }
   return { novos, duplicados };
 }
+
+async function filtrarNovosAsync(importados, db, onProgress) {
+  const base = {
+    renda: Array.isArray(db && db.incomes) ? db.incomes : [],
+    despesa: Array.isArray(db && db.expenses) ? db.expenses : []
+  };
+  const indice = {
+    renda: { fitids: new Set(), contagem: Object.create(null), vistos: Object.create(null) },
+    despesa: { fitids: new Set(), contagem: Object.create(null), vistos: Object.create(null) }
+  };
+  const lote = 100;
+  const existentes = base.renda.length + base.despesa.length;
+  let lidos = 0;
+  for (const nat of ['renda', 'despesa']) {
+    const lista = base[nat];
+    for (let i = 0; i < lista.length; i++) {
+      const e = lista[i] || {};
+      if (e.fitid) indice[nat].fitids.add(String(e.fitid));
+      const k = chaveDuplicidade(e);
+      indice[nat].contagem[k] = (indice[nat].contagem[k] || 0) + 1;
+      lidos++;
+      if (lidos % lote === 0) {
+        if (typeof onProgress === 'function') onProgress({ etapa: 'locais', done: lidos, total: existentes });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+  if (typeof onProgress === 'function') onProgress({ etapa: 'locais', done: existentes, total: existentes });
+  const novos = [], duplicados = [];
+  const listaImportada = Array.isArray(importados) ? importados : [];
+  for (let i = 0; i < listaImportada.length; i++) {
+    const it = listaImportada[i];
+    const nat = naturezaDe(it);
+    const ix = indice[nat];
+    const k = chaveDuplicidade(it);
+    ix.vistos[k] = (ix.vistos[k] || 0) + 1;
+    const fitid = it.fitid == null ? '' : String(it.fitid);
+    const jaExiste = (fitid && ix.fitids.has(fitid)) || (ix.contagem[k] || 0) >= ix.vistos[k];
+    if (jaExiste) duplicados.push(it);
+    else {
+      novos.push(it);
+      if (fitid) ix.fitids.add(fitid);
+      ix.contagem[k] = (ix.contagem[k] || 0) + 1;
+    }
+    if ((i + 1) % lote === 0) {
+      if (typeof onProgress === 'function') onProgress({ etapa: 'arquivo', done: i + 1, total: listaImportada.length });
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+  if (typeof onProgress === 'function') onProgress({ etapa: 'arquivo', done: listaImportada.length, total: listaImportada.length });
+  return { novos, duplicados };
+}
 function separarParaGravacao(novos) {
   const rendas = [], despesas = [];
   for (const it of (novos || [])) {
@@ -92,6 +144,7 @@ window.FFImport = {
   },
   chaveDuplicidade: chaveDuplicidade,
   filtrarNovos: filtrarNovos,
+  filtrarNovosAsync: filtrarNovosAsync,
   separarParaGravacao: separarParaGravacao
 };
 })();
