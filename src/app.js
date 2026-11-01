@@ -30,49 +30,43 @@ function bindStatementPanel(){
   const file=document.getElementById('statementFile')?.files?.[0],box=document.getElementById('statementPreview');
   if(!file){if(box)box.innerHTML='<p class="import-error">Selecione um arquivo OFX ou CSV antes de analisar.</p>';return}
   preview.disabled=true;preview.textContent='Analisando...';
-  const show=msg=>{if(box)box.innerHTML='<p class="report-note">'+msg+'</p>'};
+  const started=Date.now();let timer=null;
+  const elapsed=()=>{const sec=Math.floor((Date.now()-started)/1000);return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')};
+  const progress=(label,done,total,base,span)=>{
+   if(!box)return;const pct=Math.max(0,Math.min(100,Math.round(base+(total?done/total*span:0))));
+   box.innerHTML='<div class="import-progress"><div class="import-progress-head"><span id="importProgressLabel">'+label+'</span><strong>'+pct+'%</strong></div><div class="import-progress-track"><div class="import-progress-fill" style="width:'+pct+'%"></div></div><div class="import-progress-foot"><span>'+done+' de '+total+'</span><span>Tempo decorrido: <b id="importProgressTime">'+elapsed()+'</b></span></div></div>';
+  };
+  timer=setInterval(()=>{const el=document.getElementById('importProgressTime');if(el)el.textContent=elapsed()},250);
+  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
   try{
    if(!window.FFImport||typeof window.FFImport.parse!=='function')throw Error('O leitor de extratos não foi carregado. Recarregue a página.');
-   show('Lendo o extrato e identificando lançamentos...');
+   progress('Lendo arquivo',0,1,0,5);
    const parsed=await window.FFImport.parse(file);
-   show('Leitura concluída: '+(Array.isArray(parsed)?parsed.length:0)+' lançamentos. Preparando os dados...');
-   await new Promise(resolve=>setTimeout(resolve,40));
    if(!Array.isArray(parsed)||!parsed.length)throw Error('O arquivo foi lido, mas não contém movimentações reconhecidas.');
+   progress('Preparando conferência',1,1,5,0);await yieldUI();
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
-   const existing=new Set();
-   const totalExisting=incomes.length+expenses.length;
-   let scanned=0;
-   show('Conferindo duplicidades: 0 de '+totalExisting+' registros locais...');
-   await new Promise(resolve=>setTimeout(resolve,0));
-   for(const source of [incomes,expenses]){
-    for(let i=0;i<source.length;i++){
-     const x=source[i];
-     if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));
-     scanned++;
-     if(scanned%200===0){
-      show('Conferindo duplicidades: '+scanned+' de '+totalExisting+' registros locais...');
-      await new Promise(resolve=>setTimeout(resolve,0));
-     }
-    }
+   const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
+   progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();
+   for(const source of [incomes,expenses])for(let i=0;i<source.length;i++){
+    const x=source[i];if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));scanned++;
+    if(scanned%50===0||scanned===totalExisting){progress('Conferindo registros já cadastrados',scanned,totalExisting,5,30);await yieldUI()}
    }
-   show('Comparando os 156 lançamentos do arquivo...');
-   await new Promise(resolve=>setTimeout(resolve,0));
-   pendingStatementRows=[];
-   for(let i=0;i<parsed.length;i++){
+   const total=parsed.length;pendingStatementRows=[];
+   progress('Comparando lançamentos do arquivo',0,total,35,55);await yieldUI();
+   for(let i=0;i<total;i++){
     const x=parsed[i],key=x.fitid||[x.date,x.name,Math.abs(Number(x.amount)||0).toFixed(2)].join('|');
-    if(!existing.has(key))pendingStatementRows.push(x);
-    existing.add(key);
-    if((i+1)%50===0){show('Comparando lançamentos: '+(i+1)+' de '+parsed.length+'...');await new Promise(resolve=>setTimeout(resolve,0))}
+    if(!existing.has(key))pendingStatementRows.push(x);existing.add(key);
+    progress('Comparando lançamentos do arquivo',i+1,total,35,55);
+    if((i+1)%5===0||i===total-1)await yieldUI();
    }
-   show('Montando prévia de '+pendingStatementRows.length+' lançamento(s)...');
-   await new Promise(resolve=>setTimeout(resolve,20));
+   progress('Montando prévia',1,1,95,5);await yieldUI();
    const tin=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)>0?Number(x.amount):0),0),tout=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)<0?Math.abs(Number(x.amount)):0),0);
    if(!box)throw Error('A área de resultado não foi encontrada na tela.');
    let html='<div class="import-summary"><b>'+pendingStatementRows.length+' lançamento(s) novo(s)</b><p>Entradas: '+brl(tin)+' | Saídas: '+brl(tout)+'</p></div>';
    if(pendingStatementRows.length){html+='<div class="table-panel"><table class="data-table"><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>';for(const x of pendingStatementRows.slice(0,15))html+='<tr><td>'+fmtDate(x.date)+'</td><td>'+esc(String(x.name||'Movimentação importada'))+'</td><td>'+(Number(x.amount)>0?'Entrada':'Saída')+'</td><td>'+brl(Math.abs(Number(x.amount)||0))+'</td></tr>';html+='</tbody></table></div><p class="report-note">'+(pendingStatementRows.length>15?'Mostrando os primeiros 15 registros. ':'')+'Confira antes de confirmar.</p><button class="primary-button" id="confirmStatement">Confirmar importação ('+pendingStatementRows.length+')</button> <button class="secondary-button" id="cancelStatement">Cancelar</button>'}else html+='<p class="report-note">Nenhum lançamento novo. Os registros podem já estar cadastrados.</p>';
    box.innerHTML=html;bindStatementPanel();
   }catch(err){pendingStatementRows=[];if(box)box.innerHTML='<p class="import-error">Falha na prévia: '+esc(err&&err.message?err.message:String(err))+'</p>'}
-  finally{preview.disabled=false;preview.textContent='Analisar extrato'}
+  finally{if(timer)clearInterval(timer);preview.disabled=false;preview.textContent='Analisar extrato'}
  };
  if(confirmButton)confirmButton.onclick=function(){if(!pendingStatementRows.length){toast('Não há lançamentos novos para importar.');return}let added=0;pendingStatementRows.forEach(x=>{const item={id:uid(),name:x.name,category:'Outros',date:x.date,amount:Math.abs(x.amount),status:'Pago',fitid:x.fitid||'',imported:true,sourceFormat:x.sourceFormat};if(x.amount>0)db.incomes.push({...item,source:'Extrato bancário'});else db.expenses.push(item);added++});save();pendingStatementRows=[];toast(added+' lançamento(s) importado(s).')};
  if(cancelButton)cancelButton.onclick=function(){pendingStatementRows=[];const box=document.getElementById('statementPreview');if(box)box.innerHTML='<p class="report-note">Importação cancelada. Nenhum dado foi alterado.</p>'};
