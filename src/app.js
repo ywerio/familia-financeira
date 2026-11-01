@@ -39,12 +39,31 @@ function bindStatementPanel(){
    await new Promise(resolve=>setTimeout(resolve,40));
    if(!Array.isArray(parsed)||!parsed.length)throw Error('O arquivo foi lido, mas não contém movimentações reconhecidas.');
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
-   show('Conferindo possíveis duplicidades...');
-   await new Promise(resolve=>setTimeout(resolve,20));
    const existing=new Set();
-   for(const x of incomes.concat(expenses)){if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'))}
+   const totalExisting=incomes.length+expenses.length;
+   let scanned=0;
+   show('Conferindo duplicidades: 0 de '+totalExisting+' registros locais...');
+   await new Promise(resolve=>setTimeout(resolve,0));
+   for(const source of [incomes,expenses]){
+    for(let i=0;i<source.length;i++){
+     const x=source[i];
+     if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));
+     scanned++;
+     if(scanned%200===0){
+      show('Conferindo duplicidades: '+scanned+' de '+totalExisting+' registros locais...');
+      await new Promise(resolve=>setTimeout(resolve,0));
+     }
+    }
+   }
+   show('Comparando os 156 lançamentos do arquivo...');
+   await new Promise(resolve=>setTimeout(resolve,0));
    pendingStatementRows=[];
-   for(const x of parsed){const key=x.fitid||[x.date,x.name,Math.abs(Number(x.amount)||0).toFixed(2)].join('|');if(!existing.has(key))pendingStatementRows.push(x)}
+   for(let i=0;i<parsed.length;i++){
+    const x=parsed[i],key=x.fitid||[x.date,x.name,Math.abs(Number(x.amount)||0).toFixed(2)].join('|');
+    if(!existing.has(key))pendingStatementRows.push(x);
+    existing.add(key);
+    if((i+1)%50===0){show('Comparando lançamentos: '+(i+1)+' de '+parsed.length+'...');await new Promise(resolve=>setTimeout(resolve,0))}
+   }
    show('Montando prévia de '+pendingStatementRows.length+' lançamento(s)...');
    await new Promise(resolve=>setTimeout(resolve,20));
    const tin=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)>0?Number(x.amount):0),0),tout=pendingStatementRows.reduce((t,x)=>t+(Number(x.amount)<0?Math.abs(Number(x.amount)):0),0);
