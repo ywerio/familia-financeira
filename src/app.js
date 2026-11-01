@@ -45,7 +45,7 @@ function bindStatementPanel(){
    if(countEl)countEl.textContent=done+' de '+total;
   };
   timer=setInterval(()=>{const el=document.getElementById('importProgressTime');if(el)el.textContent=elapsed()},250);
-  const yieldUI=()=>new Promise(resolve=>{if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>resolve());else setTimeout(resolve,30)});
+  const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,50));
   try{
    if(!window.FFImport||typeof window.FFImport.parse!=='function')throw Error('O leitor de extratos não foi carregado. Recarregue a página.');
    progress('Lendo arquivo',0,1,0,5);
@@ -55,6 +55,7 @@ function bindStatementPanel(){
    progress('Acessando lançamentos locais',0,1,8,0);await yieldUI();
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
    progress('Dados locais acessados',1,1,10,0);await yieldUI();
+   progress('Preparando comparação dos lançamentos',0,1,12,0);
    const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
    if(totalExisting>0){progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();}
    for(const source of [incomes,expenses]){
