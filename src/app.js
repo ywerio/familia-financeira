@@ -61,10 +61,17 @@ function bindStatementPanel(){
    await yieldUI();
    const totalExisting=incomes.length+expenses.length,totalImported=parsed.length;
    pendingStatementRows=[];
-   progress('Comparando rendas e despesas separadamente',0,totalImported,15,75);
+   if(!window.FFImport||typeof window.FFImport.filtrarNovosAsync!=='function')throw Error('A conferência em etapas não foi carregada. Atualize a página.');
+   progress('Preparando índice dos lançamentos locais',0,totalExisting,13,22);
    await yieldUI();
-   if(!window.FFImport||typeof window.FFImport.filtrarNovos!=='function')throw Error('A função de conferência de duplicidades não foi carregada. Atualize a página.');
-   const resultado=window.FFImport.filtrarNovos(parsed,{incomes,expenses});
+   const resultado=await window.FFImport.filtrarNovosAsync(parsed,{incomes,expenses},info=>{
+    if(info.etapa==='locais'){
+     const pct=totalExisting?13+(info.done/totalExisting)*22:35;
+     progress('Conferindo lançamentos já cadastrados',info.done,totalExisting,13,22);
+    }else{
+     progress('Comparando lançamentos do extrato',info.done,info.total,35,55);
+    }
+   });
    pendingStatementRows=resultado.novos;
    progress('Conferência concluída',totalImported,totalImported,90,5);
    await yieldUI();
