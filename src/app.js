@@ -33,8 +33,16 @@ function bindStatementPanel(){
   const started=Date.now();let timer=null;
   const elapsed=()=>{const sec=Math.floor((Date.now()-started)/1000);return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')};
   const progress=(label,done,total,base,span)=>{
-   if(!box)return;const pct=Math.max(0,Math.min(100,Math.round(base+(total?done/total*span:0))));
-   box.innerHTML='<div class="import-progress"><div class="import-progress-head"><span id="importProgressLabel">'+label+'</span><strong>'+pct+'%</strong></div><div class="import-progress-track"><div class="import-progress-fill" style="width:'+pct+'%"></div></div><div class="import-progress-foot"><span>'+done+' de '+total+'</span><span>Tempo decorrido: <b id="importProgressTime">'+elapsed()+'</b></span></div></div>';
+   if(!box)return;
+   const pct=Math.max(0,Math.min(100,Math.round(base+(total?done/total*span:0))));
+   if(!box.querySelector('.import-progress')){
+    box.innerHTML='<div class="import-progress"><div class="import-progress-head"><span id="importProgressLabel"></span><strong id="importProgressPercent"></strong></div><div class="import-progress-track"><div class="import-progress-fill" id="importProgressFill"></div></div><div class="import-progress-foot"><span id="importProgressCount"></span><span>Tempo decorrido: <b id="importProgressTime">00:00</b></span></div></div>';
+   }
+   const labelEl=document.getElementById('importProgressLabel'),percentEl=document.getElementById('importProgressPercent'),fillEl=document.getElementById('importProgressFill'),countEl=document.getElementById('importProgressCount');
+   if(labelEl)labelEl.textContent=label;
+   if(percentEl)percentEl.textContent=pct+'%';
+   if(fillEl)fillEl.style.width=pct+'%';
+   if(countEl)countEl.textContent=done+' de '+total;
   };
   timer=setInterval(()=>{const el=document.getElementById('importProgressTime');if(el)el.textContent=elapsed()},250);
   const yieldUI=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -46,7 +54,7 @@ function bindStatementPanel(){
    progress('Preparando conferência',1,1,5,0);await yieldUI();
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
    const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
-   progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();
+   if(totalExisting>0){progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();}
    for(const source of [incomes,expenses]){
     for(let i=0;i<source.length;i++){
      const x=source[i];
@@ -58,13 +66,14 @@ function bindStatementPanel(){
      }
     }
    }
-   if(totalExisting===0){progress('Nenhum lançamento anterior para conferir',0,0,35,0);await new Promise(resolve=>setTimeout(resolve,25))}
    const total=parsed.length;pendingStatementRows=[];
-   progress('Comparando lançamentos do arquivo',0,total,35,55);await yieldUI();
+   const compareBase=totalExisting>0?35:5;
+   const compareSpan=totalExisting>0?60:90;
+   progress('Comparando lançamentos do arquivo',0,total,compareBase,compareSpan);await yieldUI();
    for(let i=0;i<total;i++){
     const x=parsed[i],key=x.fitid||[x.date,x.name,Math.abs(Number(x.amount)||0).toFixed(2)].join('|');
     if(!existing.has(key))pendingStatementRows.push(x);existing.add(key);
-    progress('Comparando lançamentos do arquivo',i+1,total,35,55);
+    progress('Comparando lançamentos do arquivo',i+1,total,compareBase,compareSpan);
     if((i+1)%5===0||i===total-1)await yieldUI();
    }
    progress('Montando prévia',1,1,95,5);await yieldUI();
