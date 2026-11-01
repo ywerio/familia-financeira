@@ -24,3 +24,9 @@ Endereço esperado: https://ywerio.github.io/familia-financeira/
 Para habilitar acesso compartilhado será necessário configurar Firebase Authentication e Cloud Firestore, implementar a sincronização e testar regras de segurança que restrinjam o acesso aos membros autorizados da família. `firebase-config.example.js` é apenas um modelo.
 
 Não coloque senhas, service-account keys ou credenciais privadas neste repositório. **Não use dados financeiros reais nesta versão de demonstração.** Faça backup dos registros locais antes de limpar o navegador.
+
+## Importação de extratos bancários
+
+A área **Lançamentos → Importar extrato bancário** aceita arquivos OFX e CSV exportados pelo banco. O processamento ocorre no navegador; o conteúdo do extrato não é enviado para um serviço externo. O usuário visualiza uma prévia e confirma antes de gravar os registros. Entradas positivas são registradas como renda e valores negativos como despesas.
+
+A importação por arquivo não é uma conexão automática via Open Finance. Os dados continuam salvos apenas no armazenamento local deste navegador; faça um backup JSON antes de qualquer manutenção ou troca de dispositivo. O reconhecimento de CSV depende dos cabeçalhos de data e valor do arquivo. Confira a prévia e os valores antes de confirmar.
