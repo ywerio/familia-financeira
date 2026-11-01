@@ -1,40 +1,10 @@
 (function(){
-  function decodeAmount(v){
-    let s=String(v??'').trim().replace(/[R$\s]/g,'');
-    if(!s)return 0;
-    if(s.includes(',')&&s.includes('.'))s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
-    else if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');
-    const n=Number(s.replace(/[^\d.-]/g,''));return Number.isFinite(n)?n:0;
-  }
-  function dateValue(v){
-    const s=String(v??'').trim();if(!s)return '';
-    let m=s.match(/^(\d{4})(\d{2})(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];
-    m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-    const d=new Date(s);return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10);
-  }
-  function parseOFX(text){
-    const rows=[];const blocks=text.match(/<STMTTRN>[\s\S]*?(?:<\/STMTTRN>|(?=<STMTTRN>)|$)/gi)||[];
-    for(const b of blocks){
-      const get=tag=>{const m=b.match(new RegExp('<'+tag+'>([^<\\r\\n]*)','i'));return m?m[1].trim():''};
-      const amount=decodeAmount(get('TRNAMT'));const date=dateValue(get('DTPOSTED'));const name=get('NAME')||get('MEMO')||'Movimentação importada';
-      if(date&&amount)rows.push({date,name,amount,fitid:get('FITID'),sourceFormat:'OFX'});
-    }
-    if(!rows.length)throw new Error('Não encontrei movimentações válidas no arquivo OFX.');
-    return rows;
-  }
-  function csvRows(text,delimiter){
-    const out=[];let row=[],cell='',quoted=false;
-    for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'&&quoted&&text[i+1]==='"'){cell+='"';i++}else if(c==='"'){quoted=!quoted}else if(c===delimiter&&!quoted){row.push(cell.trim());cell=''}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell.trim());if(row.some(x=>x!==''))out.push(row);row=[];cell=''}else cell+=c}
-    row.push(cell.trim());if(row.some(x=>x!==''))out.push(row);return out;
-  }
-  function parseCSV(text){
-    const first=text.split(/\r?\n/)[0]||'';const delimiter=[ ';',',','\t' ].sort((a,b)=>first.split(b).length-first.split(a).length)[0];
-    const data=csvRows(text.replace(/^\uFEFF/,''),delimiter);if(data.length<2)throw new Error('O CSV não contém linhas de dados.');
-    const headers=data[0].map(x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-    const find=terms=>headers.findIndex(h=>terms.some(t=>h.includes(t)));
-    const di=find(['data','date','dt']);const ai=find(['valor','amount','value','montante','credito','debito']);const ni=find(['descricao','historico','description','memo','lancamento','nome']);
-    if(di<0||ai<0)throw new Error('Não identifiquei as colunas de data e valor. Use um CSV com cabeçalhos como Data, Descrição e Valor.');
-    return data.slice(1).map(r=>({date:dateValue(r[di]),name:(ni>=0?r[ni]:'')||'Movimentação importada',amount:decodeAmount(r[ai]),sourceFormat:'CSV'})).filter(x=>x.date&&x.amount);
-  }
-  window.FFImport={async parse(file){const text=await file.text();const ext=(file.name.split('.').pop()||'').toLowerCase();if(ext==='ofx'||/OFXHEADER|<OFX>/i.test(text))return parseOFX(text);if(ext==='csv')return parseCSV(text);throw new Error('Formato não reconhecido. Selecione um arquivo OFX ou CSV.')}};
+function amount(v){let s=String(v??'').trim().replace(/[R$\s]/g,'');if(!s)return NaN;const neg=/^\(.*\)$/.test(s);s=s.replace(/[()]/g,'').replace(/[^\d,.\-+]/g,'');if(s.includes(',')&&s.includes('.'))s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');else if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=Number(s);return Number.isFinite(n)?(neg?-Math.abs(n):n):NaN}
+function date(v){const s=String(v??'').trim();let m=s.match(/^(\d{4})-?(\d{2})-?(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');const d=new Date(s);return Number.isNaN(d.getTime())?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function ofx(t){const blocks=t.replace(/\r/g,'').match(/<STMTTRN\s*>[\s\S]*?(?=<STMTTRN\s*>|<\/BANKTRANLIST>|$)/gi)||[],rows=[];for(const b of blocks){const get=k=>{const m=b.match(new RegExp('<'+k+'>([^<\\n]*)','i'));return m?m[1].trim():''};const a=amount(get('TRNAMT')),d=date(get('DTPOSTED'));if(d&&Number.isFinite(a)&&a!==0)rows.push({date:d,name:get('NAME')||get('MEMO')||get('PAYEE')||'Movimentação importada',amount:a,fitid:get('FITID'),sourceFormat:'OFX'})}if(!rows.length)throw Error('O arquivo parece ser OFX, mas não encontrei transações com data e valor. Baixe o extrato completo em OFX.');return rows}
+function rowsOf(t,del){const out=[];let row=[],cell='',q=false;for(let i=0;i<t.length;i++){const c=t[i];if(c==='"'&&q&&t[i+1]==='"'){cell+='"';i++}else if(c==='"')q=!q;else if(c===del&&!q){row.push(cell.trim());cell=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&t[i+1]==='\n')i++;row.push(cell.trim());if(row.some(x=>x!==''))out.push(row);row=[];cell=''}else cell+=c}row.push(cell.trim());if(row.some(x=>x!==''))out.push(row);return out}
+function norm(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function csv(t){t=t.replace(/^\uFEFF/,'').replace(/\0/g,'');const lines=t.split(/\r?\n/).filter(x=>x.trim());if(!lines.length)throw Error('O arquivo CSV está vazio.');const ds=[';',',','\t'];const del=ds.map(d=>({d,n:lines.slice(0,12).reduce((n,l)=>n+l.split(d).length-1,0)})).sort((a,b)=>b.n-a.n)[0].d;const data=rowsOf(t,del);let hi=-1,hs=[];for(let i=0;i<Math.min(20,data.length);i++){const h=data[i].map(norm);if(h.some(x=>/\bdata\b|\bdate\b/.test(x))&&h.some(x=>/valor|amount|value|credito|debito|credit|debit/.test(x))){hi=i;hs=h;break}}if(hi<0)throw Error('Não localizei o cabeçalho do extrato. O CSV precisa ter colunas de data e valor (ou crédito/débito).');const find=ps=>hs.findIndex(h=>ps.some(p=>p.test(h)));const di=find([/\bdata\b/,/\bdate\b/]),ni=find([/descricao/,/historico/,/lancamento/,/description/,/\bmemo\b/,/detalhe/,/\bnome/]),ai=find([/^valor$/, /valor.*(r|reais)/,/\bamount\b/,/\bvalue\b/,/^montante$/]),ci=find([/^credito$/,/\bcredit\b/,/valor credito/]),de=find([/^debito$/,/\bdebit\b/,/valor debito/]);if(di<0)throw Error('Não identifiquei a coluna de data no CSV.');if(ai<0&&ci<0&&de<0)throw Error('Não identifiquei a coluna de valor, crédito ou débito no CSV.');const out=[];for(const r of data.slice(hi+1)){const d=date(r[di]);if(!d)continue;let a=ai>=0?amount(r[ai]):(Number.isFinite(amount(r[ci]))?Math.abs(amount(r[ci])):0)-(Number.isFinite(amount(r[de]))?Math.abs(amount(r[de])):0);if(Number.isFinite(a)&&a!==0)out.push({date:d,name:(ni>=0?r[ni]:'')||'Movimentação importada',amount:a,sourceFormat:'CSV'})}if(!out.length)throw Error('Encontrei o cabeçalho, mas não encontrei movimentações válidas com data e valor.');return out}
+async function read(f){const b=await f.arrayBuffer(),u=new Uint8Array(b);if(u[0]===255&&u[1]===254)return new TextDecoder('utf-16le').decode(b);if(u[0]===254&&u[1]===255)return new TextDecoder('utf-16be').decode(b);let t=new TextDecoder('utf-8').decode(b);if(t.includes('\0'))t=new TextDecoder('utf-16le').decode(b);if(t.includes('\uFFFD')){try{t=new TextDecoder('windows-1252').decode(b)}catch(e){}}return t}
+window.FFImport={async parse(f){if(!f)throw Error('Selecione um arquivo antes de analisar.');const t=await read(f);if(!t.trim())throw Error('O arquivo está vazio ou não pôde ser lido.');const ext=(f.name.split('.').pop()||'').toLowerCase();if(ext==='ofx'||/OFXHEADER|<OFX>|<STMTTRN>/i.test(t))return ofx(t);if(ext==='csv'||t.includes(';')||t.includes('\t'))return csv(t);throw Error('Formato não reconhecido. Selecione um arquivo .ofx ou .csv.')}};
 })();
