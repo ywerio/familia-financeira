@@ -47,10 +47,18 @@ function bindStatementPanel(){
    const incomes=Array.isArray(db.incomes)?db.incomes:[],expenses=Array.isArray(db.expenses)?db.expenses:[];
    const totalExisting=incomes.length+expenses.length,existing=new Set();let scanned=0;
    progress('Conferindo registros já cadastrados',0,totalExisting,5,30);await yieldUI();
-   for(const source of [incomes,expenses])for(let i=0;i<source.length;i++){
-    const x=source[i];if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));scanned++;
-    if(scanned%50===0||scanned===totalExisting){progress('Conferindo registros já cadastrados',scanned,totalExisting,5,30);await yieldUI()}
+   for(const source of [incomes,expenses]){
+    for(let i=0;i<source.length;i++){
+     const x=source[i];
+     if(x)existing.add(x.fitid||[x.date,x.name,Number(x.amount||0).toFixed(2)].join('|'));
+     scanned++;
+     if(scanned%10===0||scanned===totalExisting){
+      progress('Conferindo registros já cadastrados',scanned,totalExisting,5,30);
+      await new Promise(resolve=>setTimeout(resolve,25));
+     }
+    }
    }
+   if(totalExisting===0){progress('Nenhum lançamento anterior para conferir',0,0,35,0);await new Promise(resolve=>setTimeout(resolve,25))}
    const total=parsed.length;pendingStatementRows=[];
    progress('Comparando lançamentos do arquivo',0,total,35,55);await yieldUI();
    for(let i=0;i<total;i++){
